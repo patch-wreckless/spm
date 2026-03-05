@@ -1,6 +1,5 @@
+package = "npth"
 version = "1.8"
-
-license = "LGPL-2.1-or-later"
 
 [source]
 url = "https://gnupg.org/ftp/gcrypt/npth/npth-1.8.tar.bz2"

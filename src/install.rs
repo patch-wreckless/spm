@@ -35,6 +35,72 @@ pub fn install(
 
     extract_tar_to_source(&archive_path, &store)?;
 
+    let install_dir = store.join("install");
+    fs::create_dir_all(&install_dir)?;
+
+    let build_dir = store.join("build");
+    fs::create_dir_all(&build_dir)?;
+
+    let source_path = store.join("source");
+
+    let home = dirs::home_dir().ok_or("HOME directory not found")?;
+    let runtime = home.join(".spm/runtime");
+
+    let path = std::env::var("PATH").unwrap_or_else(|_| String::new());
+
+    let output = Command::new(format!("{}/configure", source_path.to_string_lossy()))
+        .env(
+            "PATH",
+            format!("{}/bin:{}", runtime.to_string_lossy(), path),
+        )
+        .arg(format!("--prefix={}", install_dir.to_string_lossy()))
+        .arg(format!(
+            "PKG_CONFIG_PATH={}/lib/pkgconfig",
+            runtime.to_string_lossy()
+        ))
+        .arg(format!("CPPFLAGS=-I{}/include", runtime.to_string_lossy()))
+        .arg(format!(
+            "LDFLAGS=-L{}/lib -Wl,-rpath,{}/lib",
+            runtime.to_string_lossy(),
+            runtime.to_string_lossy()
+        ))
+        .current_dir(&build_dir)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "./configure failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    let parallelism = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+
+    let output = Command::new("make")
+        .arg(format!("-j{}", parallelism))
+        .current_dir(&build_dir)
+        .output()?;
+    if !output.status.success() {
+        return Err(format!("make failed: {}", String::from_utf8_lossy(&output.stderr)).into());
+    }
+
+    let output = Command::new("make")
+        .arg("install")
+        .current_dir(&build_dir)
+        .output()?;
+    if !output.status.success() {
+        return Err(format!(
+            "make install failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    link_into_runtime(&install_dir)?;
+
     println!("Installed {}@{}", package, spec.version);
     Ok(())
 }
@@ -104,14 +170,18 @@ fn extract_tar_to_source(
     let extract = dest.join("extract");
     fs::create_dir_all(&extract)?;
 
-    let status = Command::new("tar")
+    let output = Command::new("tar")
         .arg("-xf")
         .arg(archive_path)
         .arg("-C")
         .arg(&extract)
-        .status()?;
-    if !status.success() {
-        return Err("tar extraction failed".into());
+        .output()?;
+    if !output.status.success() {
+        return Err(format!(
+            "tar extraction failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
 
     // Some source archives contain a top-level directory, while others contain files directly. We
@@ -134,5 +204,39 @@ fn extract_tar_to_source(
         }
     }
     fs::remove_dir_all(extract)?;
+    Ok(())
+}
+
+fn link_into_runtime(install_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::symlink;
+
+    let home = dirs::home_dir().ok_or("HOME directory not found")?;
+    let runtime = home.join(".spm/runtime");
+
+    fs::create_dir_all(&runtime)?;
+
+    fn recurse(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let path = entry.path();
+            let target = dst.join(entry.file_name());
+
+            if path.is_dir() {
+                fs::create_dir_all(&target)?;
+                recurse(&path, &target)?;
+            } else {
+                if target.exists() {
+                    fs::remove_file(&target)?;
+                }
+
+                symlink(&path, &target)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    recurse(install_dir, &runtime)?;
+
     Ok(())
 }

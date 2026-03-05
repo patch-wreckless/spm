@@ -1,0 +1,2 @@
+name = "libgcrypt"
+description = "General purpose cryptographic library originally based on code from GnuPG"

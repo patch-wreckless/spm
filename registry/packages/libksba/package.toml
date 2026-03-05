@@ -1,0 +1,2 @@
+name = "libksba"
+description = "A library to make the tasks of working with X.509 certificates, CMS data and related objects more easy"

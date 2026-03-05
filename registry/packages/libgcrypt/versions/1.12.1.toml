@@ -1,0 +1,18 @@
+package = "libgcrypt"
+version = "1.12.1"
+
+[source]
+url = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.1.tar.bz2"
+sha256 = "7df5c08d952ba33f9b6bdabdb06a61a78b2cf62d2122c2d1d03a91a79832aa3c"
+
+[signature]
+type = "gpg"
+url = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.1.tar.bz2.sig"
+expected_keys = [
+    "6DAA6E64A76D2840571B4902528897B826403ADA",
+    "AC8E115BF73E2D8D47FA9908E98E9B2D19C6C8BD"
+]
+
+[build]
+system = "autotools"
+configure_args = ["--enable-shared"]

@@ -1,0 +1,2 @@
+name = "libgpg-error"
+description = "A runtime library for GnuPG and other software which likes to use it"

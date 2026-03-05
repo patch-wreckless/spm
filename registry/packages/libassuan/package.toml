@@ -1,0 +1,2 @@
+name = "libassuan"
+description = "A small library implementing the so-called Assuan protocol"
